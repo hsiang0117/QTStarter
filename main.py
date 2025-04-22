@@ -1,10 +1,11 @@
 import sys
 import pandas as pd
-from PyQt5.QtCore import Qt, QAbstractTableModel, QTimer
+import struct
+import csv
+from PyQt5.QtCore import Qt, QAbstractTableModel
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableView, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, \
-    QLabel, QHeaderView, QStyledItemDelegate, QSpinBox, QAction, QTimeEdit, QComboBox
-
+    QLabel, QHeaderView, QStyledItemDelegate, QSpinBox, QAction, QTimeEdit, QComboBox, QStackedWidget, QStyle
 from settings import *
 
 class SpinBoxDelegate(QStyledItemDelegate):
@@ -116,23 +117,10 @@ class MainWindow(QMainWindow):
                 df.insert(1, 'score', 10)
                 level[name] = df
 
-    def init_ui(self):
-        self.toolbar = self.addToolBar('')
-        self.toolbar.setMovable(False)
-        self.toolbar.setContextMenuPolicy(Qt.PreventContextMenu)
-
-        self.create_action('Environment', 0)
-        self.create_action('Level1', 1)
-        self.create_action('Level2', 2)
-        self.create_action('Level3', 3)
-        self.create_action('Level4', 4)
-
-        self.env_page()
-
     def create_action(self, name, level):
         if level == 0:
             action = QAction(QIcon('icon/cloud.png'), 'Environment', self)
-            action.triggered.connect(lambda: self.env_page())
+            action.triggered.connect(lambda _, i=level: self.stacked.setCurrentIndex(i))
             self.toolbar.addAction(action)
             return
         elif level == 1:
@@ -143,14 +131,12 @@ class MainWindow(QMainWindow):
             action = QAction(QIcon('icon/three.png'), 'Level3', self)
         elif level == 4:
             action = QAction(QIcon('icon/four.png'), 'Level4', self)
-        action.triggered.connect(lambda: self.level_page(level))
+        action.triggered.connect(lambda _, i=level: self.stacked.setCurrentIndex(i))
         self.toolbar.addAction(action)
 
-    def ok_button_clicked(self):
-        print(self.weatherPicker.currentIndex())
-
-    def env_page(self):
-        envLabel=QLabel(level_0_name)
+    def create_env_page(self):
+        widget = QWidget()
+        envLabel = QLabel(level_0_name)
         envLabel.setStyleSheet("font-weight:bold; margin-left:0px; margin-top:10px; margin-bottom:10px")
 
         timehBox = QHBoxLayout()
@@ -163,29 +149,23 @@ class MainWindow(QMainWindow):
         weatherhBox = QHBoxLayout()
         weatherLabel = QLabel('天气：')
         self.weatherPicker = QComboBox()
-        self.weatherPicker.addItems(['晴','多云','雾','打雷','雷暴','雪','雨'])
+        self.weatherPicker.addItems(['晴', '多云', '雾', '打雷', '雷暴', '雪', '雨'])
         weatherhBox.addWidget(weatherLabel)
         weatherhBox.addWidget(self.weatherPicker)
         weatherhBox.addStretch(2)
-
-        okButton = QPushButton("OK")
-        okButton.clicked.connect(self.ok_button_clicked)
-        bottomhBox = QHBoxLayout()
-        bottomhBox.addStretch(1)
-        bottomhBox.addWidget(okButton)
 
         vbox = QVBoxLayout()
         vbox.addWidget(envLabel)
         vbox.addLayout(timehBox)
         vbox.addLayout(weatherhBox)
         vbox.addStretch(3)
-        vbox.addLayout(bottomhBox)
 
-        central_widget = QWidget()
-        central_widget.setLayout(vbox)
-        self.setCentralWidget(central_widget)
+        widget.setLayout(vbox)
+        return widget
 
-    def level_page(self, level):
+    def create_level_page(self, level):
+        widget = QWidget()
+
         if level == 1:
             sheets = self.level_1_sheets
         elif level == 2:
@@ -239,21 +219,61 @@ class MainWindow(QMainWindow):
 
                 vbox.addWidget(table)
 
+        widget.setLayout(vbox)
+        return widget
 
-        okButton = QPushButton("OK")
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        hbox.addWidget(okButton)
-        vbox.addLayout(hbox)
+    def init_ui(self):
+        self.toolbar = self.addToolBar('')
+        self.toolbar.setMovable(False)
+        self.toolbar.setContextMenuPolicy(Qt.PreventContextMenu)
+        self.create_action('Environment', 0)
+        self.create_action('Level1', 1)
+        self.create_action('Level2', 2)
+        self.create_action('Level3', 3)
+        self.create_action('Level4', 4)
 
-        central_widget = QWidget()
-        central_widget.setLayout(vbox)
-        self.setCentralWidget(central_widget)
+        self.stacked = QStackedWidget()
+        self.stacked.addWidget(self.create_env_page())
+        for i in (1,2,3,4):
+            self.stacked.addWidget(self.create_level_page(i))
+
+        ok_btn = QPushButton("OK")
+        ok_btn.clicked.connect(self.ok_button_clicked)
+
+        style = QApplication.style()
+        defaultLeft = style.pixelMetric(QStyle.PM_LayoutLeftMargin)
+        defaultTop = style.pixelMetric(QStyle.PM_LayoutTopMargin)
+        defaultRight = style.pixelMetric(QStyle.PM_LayoutRightMargin)
+        defaultBottom = style.pixelMetric(QStyle.PM_LayoutBottomMargin)
+
+        central = QWidget()
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.stacked)
+        bottom = QHBoxLayout()
+        bottom.setContentsMargins(defaultLeft, defaultTop, defaultRight, defaultBottom)
+        bottom.addStretch(1)
+        bottom.addWidget(ok_btn)
+        layout.addLayout(bottom)
+        self.setCentralWidget(central)
+
+    def ok_button_clicked(self):
+        time = int(str(self.timePicker.time().hour()).zfill(2)+str(self.timePicker.time().minute()).zfill(2))
+        weather = self.weatherPicker.currentIndex()
+        with open(binary_output,'wb') as file:
+            packed = struct.pack('<HH',time,weather)
+            file.write(packed)
+        file.close()
+        for level in (self.level_1_sheets,self.level_2_sheets,self.level_3_sheets,self.level_4_sheets):
+            for df in level.values():
+                for index, row in df.iterrows():
+                    if row['required']:
+                        print(str(row['id'])+str(row['score']))
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = MainWindow()
-    window.resize(800, 1200)
+    window.resize(1200, 1200)
     window.show()
     sys.exit(app.exec_())
