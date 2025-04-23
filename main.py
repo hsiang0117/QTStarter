@@ -1,12 +1,17 @@
-import sys
-import pandas as pd
-import struct
 import csv
-from PyQt5.QtCore import Qt, QAbstractTableModel
+import os.path
+import struct
+import subprocess
+import sys
+
+import pandas as pd
+from PyQt5.QtCore import Qt, QAbstractTableModel, QTime
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableView, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, \
     QLabel, QHeaderView, QStyledItemDelegate, QSpinBox, QAction, QTimeEdit, QComboBox, QStackedWidget, QStyle
+
 from settings import *
+
 
 class SpinBoxDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
@@ -92,17 +97,29 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle('Starter')
         self.setWindowIcon(QIcon('icon/plane.png'))
-        self.load_data()
-        self.init_ui()
+        self.level1Sheets = None
+        self.level2Sheets = None
+        self.level3Sheets = None
+        self.level4Sheets = None
+        self.timePicker = None
+        self.weatherPicker = None
+        self.loadData()
+        self.initUi()
 
-    def load_data(self):
-        self.level_1_sheets = pd.read_excel(level_1_excel, sheet_name=None, dtype={'id': str})
-        self.level_2_sheets = pd.read_excel(level_2_excel, sheet_name=None, dtype={'id': str})
-        self.level_3_sheets = pd.read_excel(level_3_excel, sheet_name=None, dtype={'id': str})
-        self.level_4_sheets = pd.read_excel(level_4_excel, sheet_name=None, dtype={'id': str})
+    def loadData(self):
+        if os.path.exists(LEVEL_1_EXCEL):
+            self.level1Sheets = pd.read_excel(LEVEL_1_EXCEL, sheet_name=None, dtype={'id': str})
+        if os.path.exists(LEVEL_2_EXCEL):
+            self.level2Sheets = pd.read_excel(LEVEL_2_EXCEL, sheet_name=None, dtype={'id': str})
+        if os.path.exists(LEVEL_3_EXCEL):
+            self.level3Sheets = pd.read_excel(LEVEL_3_EXCEL, sheet_name=None, dtype={'id': str})
+        if os.path.exists(LEVEL_4_EXCEL):
+            self.level4Sheets = pd.read_excel(LEVEL_4_EXCEL, sheet_name=None, dtype={'id': str})
 
-        for level in [self.level_1_sheets, self.level_2_sheets,
-                      self.level_3_sheets, self.level_4_sheets]:
+        for level in [self.level1Sheets, self.level2Sheets,
+                      self.level3Sheets, self.level4Sheets]:
+            if level is None:
+                continue
             for name, df in level.items():
                 df['id'] = df['id'].ffill()
                 if 'Question' in df.columns:
@@ -117,7 +134,7 @@ class MainWindow(QMainWindow):
                 df.insert(1, 'score', 10)
                 level[name] = df
 
-    def create_action(self, name, level):
+    def createAction(self, name, level):
         if level == 0:
             action = QAction(QIcon('icon/cloud.png'), 'Environment', self)
             action.triggered.connect(lambda _, i=level: self.stacked.setCurrentIndex(i))
@@ -134,14 +151,15 @@ class MainWindow(QMainWindow):
         action.triggered.connect(lambda _, i=level: self.stacked.setCurrentIndex(i))
         self.toolbar.addAction(action)
 
-    def create_env_page(self):
+    def createEnvPage(self):
         widget = QWidget()
-        envLabel = QLabel(level_0_name)
+        envLabel = QLabel(LEVEL_0_NAME)
         envLabel.setStyleSheet("font-weight:bold; margin-left:0px; margin-top:10px; margin-bottom:10px")
 
         timehBox = QHBoxLayout()
         timeLabel = QLabel('时间：')
         self.timePicker = QTimeEdit()
+        self.timePicker.setTime(QTime(12, 0))
         timehBox.addWidget(timeLabel)
         timehBox.addWidget(self.timePicker)
         timehBox.addStretch(2)
@@ -154,39 +172,44 @@ class MainWindow(QMainWindow):
         weatherhBox.addWidget(self.weatherPicker)
         weatherhBox.addStretch(2)
 
-        vbox = QVBoxLayout()
+        vbox = QVBoxLayout(widget)
         vbox.addWidget(envLabel)
         vbox.addLayout(timehBox)
         vbox.addLayout(weatherhBox)
         vbox.addStretch(3)
 
-        widget.setLayout(vbox)
         return widget
 
-    def create_level_page(self, level):
+    def createLevelPage(self, level):
         widget = QWidget()
 
         if level == 1:
-            sheets = self.level_1_sheets
+            sheets = self.level1Sheets
         elif level == 2:
-            sheets = self.level_2_sheets
+            sheets = self.level2Sheets
         elif level == 3:
-            sheets = self.level_3_sheets
+            sheets = self.level3Sheets
         elif level == 4:
-            sheets = self.level_4_sheets
+            sheets = self.level4Sheets
 
-        vbox = QVBoxLayout()
+        vbox = QVBoxLayout(widget)
 
         if level == 1:
-            levelLabel = QLabel(level_1_name)
+            levelLabel = QLabel(LEVEL_1_NAME)
         elif level == 2:
-            levelLabel = QLabel(level_2_name)
+            levelLabel = QLabel(LEVEL_2_NAME)
         elif level == 3:
-            levelLabel = QLabel(level_3_name)
+            levelLabel = QLabel(LEVEL_3_NAME)
         elif level == 4:
-            levelLabel = QLabel(level_4_name)
+            levelLabel = QLabel(LEVEL_4_NAME)
         levelLabel.setStyleSheet("font-weight:bold; margin-left:0px; margin-top:10px; margin-bottom:10px")
         vbox.addWidget(levelLabel)
+
+        if sheets is None:
+            errorLabel = QLabel('本关卡题目配置读取失败，请确认路径是否正确！')
+            vbox.addWidget(errorLabel)
+            vbox.addStretch(2)
+            return widget
 
         for sheet_name, df in sheets.items():
             if not df.empty:
@@ -219,26 +242,25 @@ class MainWindow(QMainWindow):
 
                 vbox.addWidget(table)
 
-        widget.setLayout(vbox)
         return widget
 
-    def init_ui(self):
+    def initUi(self):
         self.toolbar = self.addToolBar('')
         self.toolbar.setMovable(False)
         self.toolbar.setContextMenuPolicy(Qt.PreventContextMenu)
-        self.create_action('Environment', 0)
-        self.create_action('Level1', 1)
-        self.create_action('Level2', 2)
-        self.create_action('Level3', 3)
-        self.create_action('Level4', 4)
+        self.createAction('Environment', 0)
+        self.createAction('Level1', 1)
+        self.createAction('Level2', 2)
+        self.createAction('Level3', 3)
+        self.createAction('Level4', 4)
 
         self.stacked = QStackedWidget()
-        self.stacked.addWidget(self.create_env_page())
-        for i in (1,2,3,4):
-            self.stacked.addWidget(self.create_level_page(i))
+        self.stacked.addWidget(self.createEnvPage())
+        for i in (1, 2, 3, 4):
+            self.stacked.addWidget(self.createLevelPage(i))
 
         ok_btn = QPushButton("OK")
-        ok_btn.clicked.connect(self.ok_button_clicked)
+        ok_btn.clicked.connect(self.okButtonClicked)
 
         style = QApplication.style()
         defaultLeft = style.pixelMetric(QStyle.PM_LayoutLeftMargin)
@@ -257,18 +279,29 @@ class MainWindow(QMainWindow):
         layout.addLayout(bottom)
         self.setCentralWidget(central)
 
-    def ok_button_clicked(self):
-        time = int(str(self.timePicker.time().hour()).zfill(2)+str(self.timePicker.time().minute()).zfill(2))
+    def okButtonClicked(self):
+        time = int(str(self.timePicker.time().hour()).zfill(2) + str(self.timePicker.time().minute()).zfill(2))
         weather = self.weatherPicker.currentIndex()
-        with open(binary_output,'wb') as file:
-            packed = struct.pack('<HH',time,weather)
+        with open(BINARY_OUTPUT, 'wb') as file:
+            packed = struct.pack('<HH', time, weather)
             file.write(packed)
         file.close()
-        for level in (self.level_1_sheets,self.level_2_sheets,self.level_3_sheets,self.level_4_sheets):
-            for df in level.values():
-                for index, row in df.iterrows():
-                    if row['required']:
-                        print(str(row['id'])+str(row['score']))
+
+        with open(QUESTION_OUTPUT, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            for level in (self.level1Sheets, self.level2Sheets, self.level3Sheets, self.level4Sheets):
+                if level is None:
+                    continue
+                for df in level.values():
+                    for index, row in df.iterrows():
+                        if row['required']:
+                            writer.writerow([str(row['id'])] + [str(row['score'])])
+        csvfile.close()
+
+        if os.path.exists(TRACKER_APPLICATION):
+            subprocess.Popen(TRACKER_APPLICATION)
+        if os.path.exists(UNREAL_APPLICATION):
+            subprocess.Popen(UNREAL_APPLICATION)
 
 
 if __name__ == '__main__':
