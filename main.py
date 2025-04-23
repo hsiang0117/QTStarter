@@ -9,6 +9,8 @@ from PyQt5.QtCore import Qt, QAbstractTableModel, QTime
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableView, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, \
     QLabel, QHeaderView, QStyledItemDelegate, QSpinBox, QAction, QTimeEdit, QComboBox, QStackedWidget, QStyle
+from openpyxl import load_workbook
+from openpyxl.worksheet.worksheet import Worksheet
 
 from settings import *
 
@@ -287,6 +289,7 @@ class MainWindow(QMainWindow):
             file.write(packed)
         file.close()
 
+        keepIds = []
         with open(QUESTION_OUTPUT, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             for level in (self.level1Sheets, self.level2Sheets, self.level3Sheets, self.level4Sheets):
@@ -296,12 +299,82 @@ class MainWindow(QMainWindow):
                     for index, row in df.iterrows():
                         if row['required']:
                             writer.writerow([str(row['id'])] + [str(row['score'])])
+                            keepIds.append(str(row['id']))
         csvfile.close()
+
+        levelIndex = 0
+        for path in (LEVEL_1_EXCEL, LEVEL_2_EXCEL, LEVEL_3_EXCEL, LEVEL_4_EXCEL):
+            sheets = load_workbook(path)
+            for ws in sheets.worksheets:
+                ws = self.splitMergedCells(ws)
+                rowsToCheck = list(ws.iter_rows(min_row=2, values_only=False))
+                for cellTuple in reversed(rowsToCheck):
+                    rowIdx = cellTuple[0].row
+                    if cellTuple[0].value not in keepIds:
+                        self.deleteRow(ws, rowIdx)
+                ws = self.mergeIndeticalCells(ws)
+                sheets.save(OUTPUT_EXCEL[levelIndex])
+            levelIndex += 1
 
         if os.path.exists(TRACKER_APPLICATION):
             subprocess.Popen(TRACKER_APPLICATION)
         if os.path.exists(UNREAL_APPLICATION):
             subprocess.Popen(UNREAL_APPLICATION)
+
+    def splitMergedCells(self, sheet: Worksheet):
+        merged_info = []
+        for merged_range in list(sheet.merged_cells.ranges):
+            min_row = merged_range.min_row
+            min_col = merged_range.min_col
+            max_row = merged_range.max_row
+            max_col = merged_range.max_col
+
+            top_left_value = sheet.cell(row=min_row, column=min_col).value
+            sheet.unmerge_cells(start_row=min_row, start_column=min_col,
+                                end_row=max_row, end_column=max_col)
+            merged_info.append((min_row, min_col, max_row, max_col, top_left_value))
+
+        for info in merged_info:
+            min_row, min_col, max_row, max_col, value = info
+            for row in range(min_row, max_row + 1):
+                for col in range(min_col, max_col + 1):
+                    sheet.cell(row=row, column=col, value=value)
+
+        return sheet
+
+    def mergeIndeticalCells(self, sheet: Worksheet):
+        id_dict = {}
+        for row_idx, row in enumerate(sheet.iter_rows(min_row=1), start=1):
+            cell_id = row[0].value
+            if cell_id not in id_dict:
+                id_dict[cell_id] = []
+            id_dict[cell_id].append(row_idx)
+
+        for group_id, row_indices in id_dict.items():
+            if len(row_indices) < 2:
+                continue
+            for col_idx in range(1, sheet.max_column + 1):
+                values = [
+                    sheet.cell(row=row, column=col_idx).value
+                    for row in row_indices
+                ]
+
+                if all(v == values[0] for v in values):
+                    min_row = min(row_indices)
+                    max_row = max(row_indices)
+
+                    sheet.merge_cells(
+                        start_row=min_row, start_column=col_idx,
+                        end_row=max_row, end_column=col_idx
+                    )
+        return sheet
+
+    def deleteRow(self, sheet: Worksheet, idx: int):
+        to_remove = []
+        for mcr in list(sheet.merged_cells.ranges):
+            if idx == mcr.min_row:
+                to_remove.append(mcr)
+        sheet.delete_rows(idx)
 
 
 if __name__ == '__main__':

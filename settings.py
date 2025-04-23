@@ -9,6 +9,11 @@ LEVEL_2_EXCEL = "C:\\Users\\17744\\Documents\\WeChat Files\\wxid_nbu98k2c98gz22\
 LEVEL_3_EXCEL = "C:\\Users\\17744\\Documents\\WeChat Files\\wxid_nbu98k2c98gz22\\FileStorage\\File\\2025-04\\Questions\\Level-3.xlsx"
 LEVEL_4_EXCEL = "C:\\Users\\17744\\Documents\\WeChat Files\\wxid_nbu98k2c98gz22\\FileStorage\\File\\2025-04\\Questions\\Level-4.xlsx"
 
+OUTPUT_EXCEL = ["Level-1-Output.xlsx",
+                "Level-2-Output.xlsx",
+                "Level-3-Output.xlsx",
+                "Level-4-Output.xlsx"]
+
 BINARY_OUTPUT = "timeandweather.bin"
 QUESTION_OUTPUT = "questions.csv"
 
