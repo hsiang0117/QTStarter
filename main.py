@@ -105,6 +105,8 @@ class MainWindow(QMainWindow):
         self.level4Sheets = None
         self.timePicker = None
         self.weatherPicker = None
+        self.trainTimeMinuteInput = None
+        self.trainTimeSecondInput = None
         self.loadData()
         self.initUi()
 
@@ -158,27 +160,55 @@ class MainWindow(QMainWindow):
         envLabel = QLabel(LEVEL_0_NAME)
         envLabel.setStyleSheet("font-weight:bold; margin-left:0px; margin-top:10px; margin-bottom:10px")
 
+        def setTimeByIndex(index):
+            if index == 0:
+                self.timePicker.setTime(QTime(6,45))
+            elif index == 1:
+                self.timePicker.setTime(QTime(17,30))
+            elif index == 2:
+                self.timePicker.setTime(QTime(12,0))
+            else:
+                self.timePicker.setTime(QTime(0,0))
+
         timehBox = QHBoxLayout()
         timeLabel = QLabel('时间：')
         self.timePicker = QTimeEdit()
-        self.timePicker.setTime(QTime(12, 0))
+        self.timePicker.setTime(QTime(6, 45))
+        timeComboBox = QComboBox()
+        timeComboBox.addItems(['黎明','黄昏','白天','夜晚'])
+        timeComboBox.currentIndexChanged.connect(lambda :setTimeByIndex(timeComboBox.currentIndex()))
         timehBox.addWidget(timeLabel)
         timehBox.addWidget(self.timePicker)
-        timehBox.addStretch(2)
+        timehBox.addWidget(timeComboBox)
+        timehBox.addStretch(3)
 
         weatherhBox = QHBoxLayout()
         weatherLabel = QLabel('天气：')
         self.weatherPicker = QComboBox()
-        self.weatherPicker.addItems(['晴', '多云', '雾', '打雷', '雷暴', '雪', '雨'])
+        self.weatherPicker.addItems(['晴', '多云', '雾', '雷', '雷雨', '雪', '雨', '霜'])
         weatherhBox.addWidget(weatherLabel)
         weatherhBox.addWidget(self.weatherPicker)
         weatherhBox.addStretch(2)
+
+        trainTimehBox = QHBoxLayout()
+        trainTimeLabel = QLabel('训练时长：')
+        self.trainTimeMinuteInput = QSpinBox()
+        trainTimeMinuteLabel = QLabel('分')
+        self.trainTimeSecondInput = QSpinBox()
+        trainTimeSecondLabel = QLabel('秒')
+        trainTimehBox.addWidget(trainTimeLabel)
+        trainTimehBox.addWidget(self.trainTimeMinuteInput)
+        trainTimehBox.addWidget(trainTimeMinuteLabel)
+        trainTimehBox.addWidget(self.trainTimeSecondInput)
+        trainTimehBox.addWidget(trainTimeSecondLabel)
+        trainTimehBox.addStretch(5)
 
         vbox = QVBoxLayout(widget)
         vbox.addWidget(envLabel)
         vbox.addLayout(timehBox)
         vbox.addLayout(weatherhBox)
-        vbox.addStretch(3)
+        vbox.addLayout(trainTimehBox)
+        vbox.addStretch(4)
 
         return widget
 
@@ -261,8 +291,8 @@ class MainWindow(QMainWindow):
         for i in (1, 2, 3, 4):
             self.stacked.addWidget(self.createLevelPage(i))
 
-        ok_btn = QPushButton("OK")
-        ok_btn.clicked.connect(self.okButtonClicked)
+        okBtn = QPushButton("OK")
+        okBtn.clicked.connect(self.okButtonClicked)
 
         style = QApplication.style()
         defaultLeft = style.pixelMetric(QStyle.PM_LayoutLeftMargin)
@@ -277,15 +307,16 @@ class MainWindow(QMainWindow):
         bottom = QHBoxLayout()
         bottom.setContentsMargins(defaultLeft, defaultTop, defaultRight, defaultBottom)
         bottom.addStretch(1)
-        bottom.addWidget(ok_btn)
+        bottom.addWidget(okBtn)
         layout.addLayout(bottom)
         self.setCentralWidget(central)
 
     def okButtonClicked(self):
-        time = int(str(self.timePicker.time().hour()).zfill(2) + str(self.timePicker.time().minute()).zfill(2))
+        time = self.timePicker.time().hour() * 100 + int(self.timePicker.time().minute() * 100 / 60)
         weather = self.weatherPicker.currentIndex()
+        trainTime = self.trainTimeMinuteInput.value() * 60 + self.trainTimeSecondInput.value()
         with open(BINARY_OUTPUT, 'wb') as file:
-            packed = struct.pack('<HH', time, weather)
+            packed = struct.pack('<iii', time, weather, trainTime)
             file.write(packed)
         file.close()
 
@@ -304,7 +335,7 @@ class MainWindow(QMainWindow):
 
         levelIndex = 0
         for path in (LEVEL_1_EXCEL, LEVEL_2_EXCEL, LEVEL_3_EXCEL, LEVEL_4_EXCEL):
-            sheets = load_workbook(path)
+            sheets = load_workbook(path, read_only=False)
             for ws in sheets.worksheets:
                 ws = self.splitMergedCells(ws)
                 rowsToCheck = list(ws.iter_rows(min_row=2, values_only=False))
