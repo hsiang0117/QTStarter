@@ -401,7 +401,7 @@ class ResultDetailDialog(QDialog):
         tree.setHeaderLabels(['题目','描述','用户答案','正确答案', '是否正确'])
         vbox.addWidget(tree)
 
-        with open(filePath, 'r', encoding='UTF-8') as jsonFile:
+        with open(filePath, 'r', encoding='UTF-16') as jsonFile:
             data = json.load(jsonFile)
 
         groups = {}
@@ -454,6 +454,7 @@ class ResultDetailDialog(QDialog):
         tree.header().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        tree.header().setSectionResizeMode(3, QHeaderView.ResizeToContents)
         tree.header().setStretchLastSection(True)
 
         score, possible = self.computeScore(data.get('answers', []))
