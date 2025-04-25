@@ -3,14 +3,14 @@ import os.path
 import struct
 import subprocess
 import sys
+import json
 
 import pandas as pd
-from PyQt5.QtCore import Qt, QAbstractTableModel, QTime
+from PyQt5.QtCore import Qt, QAbstractTableModel, QTime, QDir
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableView, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, \
-    QLabel, QHeaderView, QStyledItemDelegate, QSpinBox, QAction, QTimeEdit, QComboBox, QStackedWidget, QStyle
-from openpyxl import load_workbook
-from openpyxl.worksheet.worksheet import Worksheet
+    QLabel, QHeaderView, QStyledItemDelegate, QSpinBox, QAction, QTimeEdit, QComboBox, QStackedWidget, QStyle, \
+    QLineEdit, QFileSystemModel, QTreeView, QDialog, QTreeWidget, QTreeWidgetItem
 
 from settings import *
 
@@ -107,6 +107,7 @@ class MainWindow(QMainWindow):
         self.weatherPicker = None
         self.trainTimeMinuteInput = None
         self.trainTimeSecondInput = None
+        self.nameInput = None
         self.loadData()
         self.initUi()
 
@@ -141,9 +142,6 @@ class MainWindow(QMainWindow):
     def createAction(self, name, level):
         if level == 0:
             action = QAction(QIcon('icon/cloud.png'), 'Environment', self)
-            action.triggered.connect(lambda _, i=level: self.stacked.setCurrentIndex(i))
-            self.toolbar.addAction(action)
-            return
         elif level == 1:
             action = QAction(QIcon('icon/one.png'), 'Level1', self)
         elif level == 2:
@@ -152,31 +150,33 @@ class MainWindow(QMainWindow):
             action = QAction(QIcon('icon/three.png'), 'Level3', self)
         elif level == 4:
             action = QAction(QIcon('icon/four.png'), 'Level4', self)
+        elif level == 5:
+            action = QAction(QIcon('icon/result.png'), 'Result', self)
         action.triggered.connect(lambda _, i=level: self.stacked.setCurrentIndex(i))
         self.toolbar.addAction(action)
 
     def createEnvPage(self):
         widget = QWidget()
-        envLabel = QLabel(LEVEL_0_NAME)
+        envLabel = QLabel(PAGE_0_NAME)
         envLabel.setStyleSheet("font-weight:bold; margin-left:0px; margin-top:10px; margin-bottom:10px")
 
         def setTimeByIndex(index):
             if index == 0:
-                self.timePicker.setTime(QTime(6,45))
+                self.timePicker.setTime(QTime(6, 45))
             elif index == 1:
-                self.timePicker.setTime(QTime(17,30))
+                self.timePicker.setTime(QTime(17, 30))
             elif index == 2:
-                self.timePicker.setTime(QTime(12,0))
+                self.timePicker.setTime(QTime(12, 0))
             else:
-                self.timePicker.setTime(QTime(0,0))
+                self.timePicker.setTime(QTime(0, 0))
 
         timehBox = QHBoxLayout()
         timeLabel = QLabel('时间：')
         self.timePicker = QTimeEdit()
         self.timePicker.setTime(QTime(6, 45))
         timeComboBox = QComboBox()
-        timeComboBox.addItems(['黎明','黄昏','白天','夜晚'])
-        timeComboBox.currentIndexChanged.connect(lambda :setTimeByIndex(timeComboBox.currentIndex()))
+        timeComboBox.addItems(['黎明', '黄昏', '白天', '夜晚'])
+        timeComboBox.currentIndexChanged.connect(lambda: setTimeByIndex(timeComboBox.currentIndex()))
         timehBox.addWidget(timeLabel)
         timehBox.addWidget(self.timePicker)
         timehBox.addWidget(timeComboBox)
@@ -203,12 +203,20 @@ class MainWindow(QMainWindow):
         trainTimehBox.addWidget(trainTimeSecondLabel)
         trainTimehBox.addStretch(5)
 
+        namehBox = QHBoxLayout()
+        nameLabel = QLabel('姓名：')
+        self.nameInput = QLineEdit()
+        namehBox.addWidget(nameLabel)
+        namehBox.addWidget(self.nameInput)
+        namehBox.addStretch(2)
+
         vbox = QVBoxLayout(widget)
         vbox.addWidget(envLabel)
         vbox.addLayout(timehBox)
         vbox.addLayout(weatherhBox)
         vbox.addLayout(trainTimehBox)
-        vbox.addStretch(4)
+        vbox.addLayout(namehBox)
+        vbox.addStretch(5)
 
         return widget
 
@@ -227,13 +235,13 @@ class MainWindow(QMainWindow):
         vbox = QVBoxLayout(widget)
 
         if level == 1:
-            levelLabel = QLabel(LEVEL_1_NAME)
+            levelLabel = QLabel(PAGE_1_NAME)
         elif level == 2:
-            levelLabel = QLabel(LEVEL_2_NAME)
+            levelLabel = QLabel(PAGE_2_NAME)
         elif level == 3:
-            levelLabel = QLabel(LEVEL_3_NAME)
+            levelLabel = QLabel(PAGE_3_NAME)
         elif level == 4:
-            levelLabel = QLabel(LEVEL_4_NAME)
+            levelLabel = QLabel(PAGE_4_NAME)
         levelLabel.setStyleSheet("font-weight:bold; margin-left:0px; margin-top:10px; margin-bottom:10px")
         vbox.addWidget(levelLabel)
 
@@ -243,19 +251,21 @@ class MainWindow(QMainWindow):
             vbox.addStretch(2)
             return widget
 
+        stackedWidget = QStackedWidget()
+        sheethBox = QHBoxLayout()
+        sheetIndex = 0
         for sheet_name, df in sheets.items():
             if not df.empty:
-                # 标题
-                label = QLabel(f"{sheet_name}")
-                vbox.addWidget(label)
+                sheetBtn = QPushButton(sheet_name)
+                sheetBtn.clicked.connect(lambda _, i=sheetIndex: stackedWidget.setCurrentIndex(i))
+                sheethBox.addWidget(sheetBtn)
+                sheetIndex += 1
 
-                # 表格
                 model = PandasModel(df)
                 table = QTableView()
+                table.verticalHeader().hide()
                 table.setModel(model)
-                table.resizeColumnsToContents()
 
-                # 设置委托
                 table.setItemDelegateForColumn(1, SpinBoxDelegate())
 
                 for col in range(model.columnCount()):
@@ -266,13 +276,49 @@ class MainWindow(QMainWindow):
                 # 调整列宽
                 table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
                 table.showColumn(0)
-                table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Fixed)
-                table.setColumnWidth(1, 80)
-                table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
-                table.setColumnWidth(2, 80)
+                table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+                table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
                 table.horizontalHeader().setStretchLastSection(True)
+                stackedWidget.addWidget(table)
+        sheethBox.addStretch(sheetIndex)
+        vbox.addLayout(sheethBox)
+        vbox.addWidget(stackedWidget)
 
-                vbox.addWidget(table)
+        return widget
+
+    def createResultPage(self):
+        widget = QWidget()
+        vbox = QVBoxLayout(widget)
+
+        resultPageLabel = QLabel(PAGE_5_NAME)
+        resultPageLabel.setStyleSheet("font-weight:bold; margin-left:0px; margin-top:10px; margin-bottom:10px")
+        vbox.addWidget(resultPageLabel)
+
+        model = QFileSystemModel()
+        model.setFilter(QDir.Files | QDir.NoDotAndDotDot)
+        model.setNameFilters(["*.json"])
+        model.setNameFilterDisables(False)
+        model.setRootPath(RESULT_FOLDER)
+
+        def jsonFileDoubleClicked(index):
+            path = model.filePath(index)
+            if os.path.exists(path):
+                dialog = ResultDetailDialog(path, self)
+                dialog.exec_()
+
+        table = QTableView()
+        table.resizeRowsToContents()
+        table.setModel(model)
+        table.setRootIndex(model.index(RESULT_FOLDER))
+        for col in [1, 2]:
+            table.hideColumn(col)
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.horizontalHeader().hide()
+        table.verticalHeader().hide()
+        table.doubleClicked.connect(lambda index:jsonFileDoubleClicked(index))
+
+        vbox.addWidget(table)
 
         return widget
 
@@ -281,15 +327,19 @@ class MainWindow(QMainWindow):
         self.toolbar.setMovable(False)
         self.toolbar.setContextMenuPolicy(Qt.PreventContextMenu)
         self.createAction('Environment', 0)
+        self.toolbar.addSeparator()
         self.createAction('Level1', 1)
         self.createAction('Level2', 2)
         self.createAction('Level3', 3)
         self.createAction('Level4', 4)
+        self.toolbar.addSeparator()
+        self.createAction('Result',5)
 
         self.stacked = QStackedWidget()
         self.stacked.addWidget(self.createEnvPage())
         for i in (1, 2, 3, 4):
             self.stacked.addWidget(self.createLevelPage(i))
+        self.stacked.addWidget(self.createResultPage())
 
         okBtn = QPushButton("OK")
         okBtn.clicked.connect(self.okButtonClicked)
@@ -315,14 +365,17 @@ class MainWindow(QMainWindow):
         time = self.timePicker.time().hour() * 100 + int(self.timePicker.time().minute() * 100 / 60)
         weather = self.weatherPicker.currentIndex()
         trainTime = self.trainTimeMinuteInput.value() * 60 + self.trainTimeSecondInput.value()
-        with open(BINARY_OUTPUT, 'wb') as file:
+        name = self.nameInput.text()
+        with open(BINARY_OUTPUT, 'wb') as binaryFile:
             packed = struct.pack('<iii', time, weather, trainTime)
-            file.write(packed)
-        file.close()
+            binaryFile.write(packed)
+        binaryFile.close()
+        with open(NAME_OUTPUT, 'w', encoding='UTF-8') as nameFile:
+            nameFile.write(name)
+        nameFile.close()
 
-        keepIds = []
-        with open(QUESTION_OUTPUT, 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
+        with open(QUESTION1_OUTPUT, 'w', newline='') as csvFile:
+            writer = csv.writer(csvFile)
             for level in (self.level1Sheets, self.level2Sheets, self.level3Sheets, self.level4Sheets):
                 if level is None:
                     continue
@@ -330,87 +383,127 @@ class MainWindow(QMainWindow):
                     for index, row in df.iterrows():
                         if row['required']:
                             writer.writerow([str(row['id'])] + [str(row['score'])])
-                            keepIds.append(str(row['id']))
-        csvfile.close()
-
-        levelIndex = 0
-        for path in (LEVEL_1_EXCEL, LEVEL_2_EXCEL, LEVEL_3_EXCEL, LEVEL_4_EXCEL):
-            sheets = load_workbook(path, read_only=False)
-            for ws in sheets.worksheets:
-                ws = self.splitMergedCells(ws)
-                rowsToCheck = list(ws.iter_rows(min_row=2, values_only=False))
-                for cellTuple in reversed(rowsToCheck):
-                    rowIdx = cellTuple[0].row
-                    if cellTuple[0].value not in keepIds:
-                        self.deleteRow(ws, rowIdx)
-                ws = self.mergeIndeticalCells(ws)
-                sheets.save(OUTPUT_EXCEL[levelIndex])
-            levelIndex += 1
+        csvFile.close()
 
         if os.path.exists(TRACKER_APPLICATION):
             subprocess.Popen(TRACKER_APPLICATION)
         if os.path.exists(UNREAL_APPLICATION):
             subprocess.Popen(UNREAL_APPLICATION)
 
-    def splitMergedCells(self, sheet: Worksheet):
-        merged_info = []
-        for merged_range in list(sheet.merged_cells.ranges):
-            min_row = merged_range.min_row
-            min_col = merged_range.min_col
-            max_row = merged_range.max_row
-            max_col = merged_range.max_col
 
-            top_left_value = sheet.cell(row=min_row, column=min_col).value
-            sheet.unmerge_cells(start_row=min_row, start_column=min_col,
-                                end_row=max_row, end_column=max_col)
-            merged_info.append((min_row, min_col, max_row, max_col, top_left_value))
+class ResultDetailDialog(QDialog):
+    def __init__(self, filePath, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("训练结果")
+        self.resize(1200, 800)
+        vbox = QVBoxLayout(self)
+        tree = QTreeWidget()
+        tree.setHeaderLabels(['题目','描述','用户答案','正确答案', '是否正确'])
+        vbox.addWidget(tree)
 
-        for info in merged_info:
-            min_row, min_col, max_row, max_col, value = info
-            for row in range(min_row, max_row + 1):
-                for col in range(min_col, max_col + 1):
-                    sheet.cell(row=row, column=col, value=value)
+        with open(filePath, 'r', encoding='UTF-8') as jsonFile:
+            data = json.load(jsonFile)
 
-        return sheet
+        groups = {}
+        for rec in data.get("answers", []):
+            t = rec.get("type", "Unknown")
+            groups.setdefault(t, []).append(rec)
 
-    def mergeIndeticalCells(self, sheet: Worksheet):
-        id_dict = {}
-        for row_idx, row in enumerate(sheet.iter_rows(min_row=1), start=1):
-            cell_id = row[0].value
-            if cell_id not in id_dict:
-                id_dict[cell_id] = []
-            id_dict[cell_id].append(row_idx)
+        tree.clear()
+        for type, items in groups.items():
+            if type == 'SingleChoice':
+                parent = QTreeWidgetItem(['单选题'])
+            elif type == 'MultipleChoice':
+                parent = QTreeWidgetItem(['多选题'])
+            elif type == 'SceneTraining':
+                parent = QTreeWidgetItem(['场景题'])
+            elif type == 'TrueFalse':
+                parent = QTreeWidgetItem(['判断题'])
+            tree.addTopLevelItem(parent)
+            for rec in items:
+                id = rec.get('question_id', '')
+                description = rec.get('description', '')
+                userAnswer = rec.get('user_answer', '')
+                correctAnswer = rec.get('correct_answer', rec.get('correct_answers', ''))
+                questionContent = rec.get('question_content', None)
 
-        for group_id, row_indices in id_dict.items():
-            if len(row_indices) < 2:
-                continue
-            for col_idx in range(1, sheet.max_column + 1):
-                values = [
-                    sheet.cell(row=row, column=col_idx).value
-                    for row in row_indices
-                ]
+                isCorrect = False
+                if type == "SingleChoice":
+                    isCorrect = (userAnswer == correctAnswer)
+                elif type == "MultipleChoice":
+                    isCorrect = isinstance(userAnswer, list) and isinstance(correctAnswer, list) and set(
+                        userAnswer) == set(correctAnswer)
+                elif type == "SceneTraining":
+                    isCorrect = (userAnswer == "True")
+                elif type == "TrueFalse":
+                    isCorrect = (userAnswer == correctAnswer)
 
-                if all(v == values[0] for v in values):
-                    min_row = min(row_indices)
-                    max_row = max(row_indices)
+                questionItem = QTreeWidgetItem([
+                    id, description, str(userAnswer), str(correctAnswer),
+                    "✓" if isCorrect else "✗"
+                ])
+                parent.addChild(questionItem)
 
-                    sheet.merge_cells(
-                        start_row=min_row, start_column=col_idx,
-                        end_row=max_row, end_column=col_idx
-                    )
-        return sheet
+                if isinstance(questionContent, list):
+                    for index, option in enumerate(questionContent, 0):
+                        optionItem = QTreeWidgetItem([f'选项{index}：', str(option)])
+                        questionItem.addChild(optionItem)
+                elif questionContent is not None:
+                    questionItem.setText(1, f"描述：{description}\n内容：{questionContent}")
+            parent.setExpanded(True)
+        tree.header().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        tree.header().setStretchLastSection(True)
 
-    def deleteRow(self, sheet: Worksheet, idx: int):
-        to_remove = []
-        for mcr in list(sheet.merged_cells.ranges):
-            if idx == mcr.min_row:
-                to_remove.append(mcr)
-        sheet.delete_rows(idx)
+        score, possible = self.computeScore(data.get('answers', []))
+        footer = QHBoxLayout()
+        scoreLabel = QLabel(f'得分：{score}/{possible}')
+        footer.addWidget(scoreLabel)
+        footer.addStretch(1)
+        closeBtn = QPushButton('关闭')
+        closeBtn.clicked.connect(lambda :self.close())
+        footer.addWidget(closeBtn)
+
+        vbox.addLayout(footer)
+
+    def computeScore(self, answers):
+        totalScore = 0  # 用户实际得分
+        totalPossible = 0  # 所有题目分值之和
+
+        for rec in answers:
+            type = rec.get("type")
+            weight = rec.get("score", 0)
+            totalPossible += weight
+
+            ua = rec.get("user_answer")
+            ca = rec.get("correct_answer", rec.get("correct_answers"))
+
+            earned = 0
+            if type == "SingleChoice":
+                if ua == ca:
+                    earned = weight
+
+            elif type == "MultipleChoice":
+                if isinstance(ua, list) and isinstance(ca, list) and set(ua) == set(ca):
+                    earned = weight
+
+            elif type == "SceneTraining":
+                if ua == "True":
+                    earned = weight
+
+            elif type == "TrueFalse":
+                if ua == ca:
+                    earned = weight
+
+            totalScore += earned
+
+        return totalScore, totalPossible
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = MainWindow()
-    window.resize(1200, 1200)
+    window.resize(1200, 800)
     window.show()
     sys.exit(app.exec_())
