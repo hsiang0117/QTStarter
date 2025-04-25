@@ -4,6 +4,7 @@ import struct
 import subprocess
 import sys
 import json
+from importlib.metadata import metadata
 
 import pandas as pd
 from PyQt5.QtCore import Qt, QAbstractTableModel, QTime, QDir
@@ -404,6 +405,9 @@ class ResultDetailDialog(QDialog):
         with open(filePath, 'r', encoding='UTF-16') as jsonFile:
             data = json.load(jsonFile)
 
+        metadata = data.get('metadata', '')
+        name = metadata.get('trainer', 'UnKnown')
+
         groups = {}
         for rec in data.get("answers", []):
             t = rec.get("type", "Unknown")
@@ -459,7 +463,7 @@ class ResultDetailDialog(QDialog):
 
         score, possible = self.computeScore(data.get('answers', []))
         footer = QHBoxLayout()
-        scoreLabel = QLabel(f'得分：{score}/{possible}')
+        scoreLabel = QLabel(f'姓名：{name}  得分：{score}/{possible}')
         footer.addWidget(scoreLabel)
         footer.addStretch(1)
         closeBtn = QPushButton('关闭')
