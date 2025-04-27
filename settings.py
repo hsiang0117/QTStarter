@@ -1,4 +1,5 @@
-PAGE_0_NAME = "场景设置"
+PAGE_0_NAME0 = "场景设置"
+PAGE_0_NAME1 = "相机设置"
 PAGE_1_NAME = "关卡一：飞机经过严重紊流区域后的检查训练"
 PAGE_2_NAME = "关卡二：飞机重着陆后的检查训练"
 PAGE_3_NAME = "关卡三：飞机发动机运行时危险区域训练"
@@ -14,6 +15,7 @@ NAME_OUTPUT = "name.txt"
 BINARY_OUTPUT = "timeandweather.bin"
 QUESTION1_OUTPUT = "questions.csv"
 QUESTION2_OUTPUT = "questions.csv"
+YAML_OUTPUT = "settings.yaml"
 
 RESULT_FOLDER = "C:\\Users\\17744\\Documents\\WeChat Files\\wxid_nbu98k2c98gz22\\FileStorage\\File\\2025-04"
 

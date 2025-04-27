@@ -1,17 +1,17 @@
 import csv
+import json
 import os.path
 import struct
 import subprocess
 import sys
-import json
-from importlib.metadata import metadata
 
 import pandas as pd
+import yaml
 from PyQt5.QtCore import Qt, QAbstractTableModel, QTime, QDir
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableView, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, \
     QLabel, QHeaderView, QStyledItemDelegate, QSpinBox, QAction, QTimeEdit, QComboBox, QStackedWidget, QStyle, \
-    QLineEdit, QFileSystemModel, QTreeView, QDialog, QTreeWidget, QTreeWidgetItem
+    QLineEdit, QFileSystemModel, QDialog, QTreeWidget, QTreeWidgetItem, QCheckBox
 
 from settings import *
 
@@ -109,6 +109,19 @@ class MainWindow(QMainWindow):
         self.trainTimeMinuteInput = None
         self.trainTimeSecondInput = None
         self.nameInput = None
+        self.cameraSettingCheck = None
+        self.brightnessInput = None
+        self.contrastInput = None
+        self.whiteBalanceInput = None
+        self.exposureInput = None
+        self.liftBarInput = None
+        self.leftBarInput = None
+        self.rightBarInput = None
+        self.upBarInput = None
+        self.downBarInput = None
+        self.camera0Check = None
+        self.camera1Check = None
+        self.camera2Check = None
         self.loadData()
         self.initUi()
 
@@ -158,7 +171,7 @@ class MainWindow(QMainWindow):
 
     def createEnvPage(self):
         widget = QWidget()
-        envLabel = QLabel(PAGE_0_NAME)
+        envLabel = QLabel(PAGE_0_NAME0)
         envLabel.setStyleSheet("font-weight:bold; margin-left:0px; margin-top:10px; margin-bottom:10px")
 
         def setTimeByIndex(index):
@@ -171,53 +184,149 @@ class MainWindow(QMainWindow):
             else:
                 self.timePicker.setTime(QTime(0, 0))
 
-        timehBox = QHBoxLayout()
+        hBox1 = QHBoxLayout()
         timeLabel = QLabel('时间：')
         self.timePicker = QTimeEdit()
         self.timePicker.setTime(QTime(6, 45))
         timeComboBox = QComboBox()
         timeComboBox.addItems(['黎明', '黄昏', '白天', '夜晚'])
         timeComboBox.currentIndexChanged.connect(lambda: setTimeByIndex(timeComboBox.currentIndex()))
-        timehBox.addWidget(timeLabel)
-        timehBox.addWidget(self.timePicker)
-        timehBox.addWidget(timeComboBox)
-        timehBox.addStretch(3)
+        hBox1.addWidget(timeLabel)
+        hBox1.addWidget(self.timePicker)
+        hBox1.addWidget(timeComboBox)
 
-        weatherhBox = QHBoxLayout()
         weatherLabel = QLabel('天气：')
         self.weatherPicker = QComboBox()
         self.weatherPicker.addItems(['晴', '多云', '雾', '雷', '雷雨', '雪', '雨', '霜'])
-        weatherhBox.addWidget(weatherLabel)
-        weatherhBox.addWidget(self.weatherPicker)
-        weatherhBox.addStretch(2)
+        hBox1.addWidget(weatherLabel)
+        hBox1.addWidget(self.weatherPicker)
+        hBox1.addStretch(5)
 
-        trainTimehBox = QHBoxLayout()
+        hBox2 = QHBoxLayout()
+        nameLabel = QLabel('姓名：')
+        self.nameInput = QLineEdit()
         trainTimeLabel = QLabel('训练时长：')
         self.trainTimeMinuteInput = QSpinBox()
         trainTimeMinuteLabel = QLabel('分')
         self.trainTimeSecondInput = QSpinBox()
         trainTimeSecondLabel = QLabel('秒')
-        trainTimehBox.addWidget(trainTimeLabel)
-        trainTimehBox.addWidget(self.trainTimeMinuteInput)
-        trainTimehBox.addWidget(trainTimeMinuteLabel)
-        trainTimehBox.addWidget(self.trainTimeSecondInput)
-        trainTimehBox.addWidget(trainTimeSecondLabel)
-        trainTimehBox.addStretch(5)
 
-        namehBox = QHBoxLayout()
-        nameLabel = QLabel('姓名：')
-        self.nameInput = QLineEdit()
-        namehBox.addWidget(nameLabel)
-        namehBox.addWidget(self.nameInput)
-        namehBox.addStretch(2)
+        hBox2.addWidget(nameLabel)
+        hBox2.addWidget(self.nameInput)
+        hBox2.addWidget(trainTimeLabel)
+        hBox2.addWidget(self.trainTimeMinuteInput)
+        hBox2.addWidget(trainTimeMinuteLabel)
+        hBox2.addWidget(self.trainTimeSecondInput)
+        hBox2.addWidget(trainTimeSecondLabel)
+        hBox2.addStretch(7)
+
+        cameraLabel = QLabel(PAGE_0_NAME1)
+        cameraLabel.setStyleSheet("font-weight:bold; margin-left:0px; margin-top:10px; margin-bottom:10px")
+
+        hbox3 = QHBoxLayout()
+        self.brightnessInput = QSpinBox()
+        self.brightnessInput.setMaximum(100)
+        self.contrastInput = QSpinBox()
+        self.contrastInput.setMaximum(100)
+        self.whiteBalanceInput = QSpinBox()
+        self.whiteBalanceInput.setSingleStep(100)
+        self.whiteBalanceInput.setMinimum(2000)
+        self.whiteBalanceInput.setMaximum(10000)
+        self.whiteBalanceInput.setValue(6500)
+        self.exposureInput = QSpinBox()
+        self.exposureInput.setMinimum(-10)
+        self.exposureInput.setMaximum(-1)
+        self.exposureInput.setValue(-8)
+
+        def onCameraCheckBoxChanged(state):
+            if state == 0:
+                for comp in (self.brightnessInput, self.contrastInput, self.whiteBalanceInput, self.exposureInput):
+                    comp.setEnabled(False)
+            else:
+                for comp in (self.brightnessInput, self.contrastInput, self.whiteBalanceInput, self.exposureInput):
+                    comp.setEnabled(True)
+
+        self.cameraSettingCheck = QCheckBox()
+        self.cameraSettingCheck.setChecked(True)
+        self.cameraSettingCheck.stateChanged.connect(onCameraCheckBoxChanged)
+        cameraSettingLabel = QLabel('相机设置：')
+        hbox3.addWidget(self.cameraSettingCheck)
+        hbox3.addWidget(cameraSettingLabel)
+        brightnessLabel = QLabel('亮度')
+        contrastLabel = QLabel('对比度')
+        whiteBalanceLabel = QLabel('白平衡')
+        exposureLabel = QLabel('曝光')
+        hbox3.addWidget(brightnessLabel)
+        hbox3.addWidget(self.brightnessInput)
+        hbox3.addWidget(contrastLabel)
+        hbox3.addWidget(self.contrastInput)
+        hbox3.addWidget(whiteBalanceLabel)
+        hbox3.addWidget(self.whiteBalanceInput)
+        hbox3.addWidget(exposureLabel)
+        hbox3.addWidget(self.exposureInput)
+        hbox3.addStretch(10)
+
+        hbox4 = QHBoxLayout()
+        self.liftBarInput = QSpinBox()
+        self.liftBarInput.setMaximum(180)
+        self.liftBarInput.setValue(40)
+        self.leftBarInput = QSpinBox()
+        self.leftBarInput.setMaximum(180)
+        self.leftBarInput.setValue(130)
+        self.rightBarInput = QSpinBox()
+        self.rightBarInput.setMaximum(180)
+        self.rightBarInput.setValue(90)
+        self.upBarInput = QSpinBox()
+        self.upBarInput.setMaximum(180)
+        self.upBarInput.setValue(110)
+        self.downBarInput = QSpinBox()
+        self.downBarInput.setMaximum(180)
+        self.downBarInput.setValue(70)
+        thresholdLabel = QLabel('动作阈值（角度）：')
+        liftBarLabel = QLabel('抬起')
+        leftBarLabel = QLabel('左转')
+        rightBarLabel = QLabel('右转')
+        upBarLabel = QLabel('前进')
+        downBarLabel = QLabel('后退')
+        hbox4.addWidget(thresholdLabel)
+        hbox4.addWidget(liftBarLabel)
+        hbox4.addWidget(self.liftBarInput)
+        hbox4.addWidget(leftBarLabel)
+        hbox4.addWidget(self.leftBarInput)
+        hbox4.addWidget(rightBarLabel)
+        hbox4.addWidget(self.rightBarInput)
+        hbox4.addWidget(upBarLabel)
+        hbox4.addWidget(self.upBarInput)
+        hbox4.addWidget(downBarLabel)
+        hbox4.addWidget(self.downBarInput)
+        hbox4.addStretch(9)
+
+        hbox5 = QHBoxLayout()
+        self.camera0Check = QCheckBox()
+        self.camera1Check = QCheckBox()
+        self.camera2Check = QCheckBox()
+        for comp in (self.camera0Check, self.camera1Check, self.camera2Check):
+            comp.setChecked(True)
+        camera0Label = QLabel('Camera0')
+        camera1Label = QLabel('Camera1')
+        camera2Label = QLabel('Camera2')
+        hbox5.addWidget(self.camera0Check)
+        hbox5.addWidget(camera0Label)
+        hbox5.addWidget(self.camera1Check)
+        hbox5.addWidget(camera1Label)
+        hbox5.addWidget(self.camera2Check)
+        hbox5.addWidget(camera2Label)
+        hbox5.addStretch(6)
 
         vbox = QVBoxLayout(widget)
         vbox.addWidget(envLabel)
-        vbox.addLayout(timehBox)
-        vbox.addLayout(weatherhBox)
-        vbox.addLayout(trainTimehBox)
-        vbox.addLayout(namehBox)
-        vbox.addStretch(5)
+        vbox.addLayout(hBox1)
+        vbox.addLayout(hBox2)
+        vbox.addWidget(cameraLabel)
+        vbox.addLayout(hbox3)
+        vbox.addLayout(hbox4)
+        vbox.addLayout(hbox5)
+        vbox.addStretch(6)
 
         return widget
 
@@ -317,7 +426,7 @@ class MainWindow(QMainWindow):
         table.horizontalHeader().setStretchLastSection(True)
         table.horizontalHeader().hide()
         table.verticalHeader().hide()
-        table.doubleClicked.connect(lambda index:jsonFileDoubleClicked(index))
+        table.doubleClicked.connect(lambda index: jsonFileDoubleClicked(index))
 
         vbox.addWidget(table)
 
@@ -334,7 +443,7 @@ class MainWindow(QMainWindow):
         self.createAction('Level3', 3)
         self.createAction('Level4', 4)
         self.toolbar.addSeparator()
-        self.createAction('Result',5)
+        self.createAction('Result', 5)
 
         self.stacked = QStackedWidget()
         self.stacked.addWidget(self.createEnvPage())
@@ -342,8 +451,18 @@ class MainWindow(QMainWindow):
             self.stacked.addWidget(self.createLevelPage(i))
         self.stacked.addWidget(self.createResultPage())
 
-        okBtn = QPushButton("OK")
+        okBtn = QPushButton("确认")
         okBtn.clicked.connect(self.okButtonClicked)
+        trackerBtn = QPushButton('启动追踪')
+        def trackerBtnClicked():
+            if os.path.exists(TRACKER_APPLICATION):
+                subprocess.Popen(TRACKER_APPLICATION)
+        trackerBtn.clicked.connect(trackerBtnClicked)
+        unrealBtn = QPushButton('启动应用')
+        def unrealBtnClicked():
+            if os.path.exists(UNREAL_APPLICATION):
+                subprocess.Popen(UNREAL_APPLICATION)
+        unrealBtn.clicked.connect(unrealBtnClicked)
 
         style = QApplication.style()
         defaultLeft = style.pixelMetric(QStyle.PM_LayoutLeftMargin)
@@ -357,8 +476,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.stacked)
         bottom = QHBoxLayout()
         bottom.setContentsMargins(defaultLeft, defaultTop, defaultRight, defaultBottom)
-        bottom.addStretch(1)
+        bottom.addStretch(0)
         bottom.addWidget(okBtn)
+        bottom.addWidget(trackerBtn)
+        bottom.addWidget(unrealBtn)
         layout.addLayout(bottom)
         self.setCentralWidget(central)
 
@@ -374,6 +495,23 @@ class MainWindow(QMainWindow):
         with open(NAME_OUTPUT, 'w', encoding='UTF-8') as nameFile:
             nameFile.write(name)
         nameFile.close()
+        with open(YAML_OUTPUT, 'w') as yamlFile:
+            data = {
+                'camera_settings': True if self.cameraSettingCheck.isChecked() else False,
+                'brightness': self.brightnessInput.value(),
+                'contrast': self.contrastInput.value(),
+                'white_balance': self.whiteBalanceInput.value(),
+                'exposure': self.exposureInput.value(),
+                'lift_bar': self.liftBarInput.value(),
+                'left_bar': self.leftBarInput.value(),
+                'right_bar': self.rightBarInput.value(),
+                'up_bar': self.upBarInput.value(),
+                'down_bar': self.downBarInput.value(),
+                'camera0_show': True if self.camera0Check.isChecked() else False,
+                'camera1_show': True if self.camera1Check.isChecked() else False,
+                'camera2_show': True if self.camera2Check.isChecked() else False
+            }
+            yaml.dump(data, yamlFile, default_flow_style=False, sort_keys=False)
 
         with open(QUESTION1_OUTPUT, 'w', newline='') as csvFile:
             writer = csv.writer(csvFile)
@@ -386,8 +524,6 @@ class MainWindow(QMainWindow):
                             writer.writerow([str(row['id'])] + [str(row['score'])])
         csvFile.close()
 
-        if os.path.exists(TRACKER_APPLICATION):
-            subprocess.Popen(TRACKER_APPLICATION)
         if os.path.exists(UNREAL_APPLICATION):
             subprocess.Popen(UNREAL_APPLICATION)
 
@@ -399,7 +535,7 @@ class ResultDetailDialog(QDialog):
         self.resize(1200, 800)
         vbox = QVBoxLayout(self)
         tree = QTreeWidget()
-        tree.setHeaderLabels(['题目','描述','用户答案','正确答案', '是否正确'])
+        tree.setHeaderLabels(['题目', '描述', '用户答案', '正确答案', '是否正确'])
         vbox.addWidget(tree)
 
         with open(filePath, 'r', encoding='UTF-16') as jsonFile:
@@ -467,7 +603,7 @@ class ResultDetailDialog(QDialog):
         footer.addWidget(scoreLabel)
         footer.addStretch(1)
         closeBtn = QPushButton('关闭')
-        closeBtn.clicked.connect(lambda :self.close())
+        closeBtn.clicked.connect(lambda: self.close())
         footer.addWidget(closeBtn)
 
         vbox.addLayout(footer)
